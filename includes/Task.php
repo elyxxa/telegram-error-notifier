@@ -910,20 +910,24 @@ class Task {
         }
 
         try {
-            // Check WAF status and protection level
-            $learning_mode = false;
-            if (class_exists('\wfWAF')) {
-                $waf = \wfWAF::getInstance();
-                if ($waf) {
-                    $learning_mode = $waf->isInLearningMode();
-                }
+            $firewall_mode = false;
+			$protection_mode = false;
+            
+            // Check if WAF class exists and is accessible
+            if (class_exists('\wfFirewall')) {
+
+				$firewall = new \wfFirewall();
+
+				if (method_exists($firewall, 'protectionMode')) {
+					$protection_mode = $firewall->protectionMode();
+				}
+				if (method_exists($firewall, 'firewallMode')) {
+					$firewall_mode = $firewall->firewallMode();
+				}
             }
 
-            $basic_firewall = get_option('wordfence_basicConfigured', false);
-            $protection_level = get_option('wordfence_protectionLevel', 'basic');
-            
             // Alert for Learning Mode
-            if ($learning_mode) {
+            if ($firewall_mode === 'learning') {
                 $message = sprintf(
                     "⚠️ Warning: Wordfence Web Application Firewall (WAF) is currently in Learning Mode on %s. " .
                     "While this is normal for newly installed WAF, leaving it in Learning Mode reduces your site's security. " .
@@ -935,30 +939,26 @@ class Task {
                     $this->site_url
                 );
                 $this->alert->send_telegram_message($message, true);
-            }
-            
-            // Alert for Basic Protection Level
-            if ($protection_level === 'basic') {
-                $message = sprintf(
-                    "⚠️ Warning: Wordfence Firewall is running in Basic Protection Mode on %s. " .
-                    "For maximum security, we recommend enabling Extended Protection Mode.\n\n" .
-                    "To enable Extended Protection:\n" .
-                    "1. Go to Wordfence > Firewall > Firewall Configuration\n" .
-                    "2. Set Protection Level to 'Extended Protection'\n" .
-                    "3. Save Changes",
+            } elseif ($firewall_mode === 'disabled') {
+				$message = sprintf(
+                    "🚨 Warning: Wordfence Firewall is currently DISABLED on %s. " .
+                    "This leaves your site vulnerable to attacks.\n\n" .
+                    "To enable the firewall:\n" .
+                    "1. Go to Wordfence > Firewall\n" .
+                    "2. Enable the Web Application Firewall",
                     $this->site_url
                 );
                 $this->alert->send_telegram_message($message, true);
             }
-            
-            // Alert for unconfigured basic firewall
-            if (!$basic_firewall) {
+
+            if ($protection_mode !== 'extended') {
                 $message = sprintf(
-                    "⚠️ Warning: Wordfence Basic Firewall Protection is not fully configured on %s. " .
-                    "To maximize your site's security, please complete the basic firewall setup:\n\n" .
+                    "⚠️ Warning: Wordfence Firewall is not running in Extended Protection Mode on %s. " .
+                    "For maximum security, we recommend enabling Extended Protection Mode.\n\n" .
+                    "To enable Extended Protection:\n" .
                     "1. Go to Wordfence > Firewall\n" .
                     "2. Click 'OPTIMIZE THE WORDFENCE FIREWALL'\n" .
-                    "3. Follow the configuration steps",
+                    "3. Follow the optimization steps to install Extended Protection",
                     $this->site_url
                 );
                 $this->alert->send_telegram_message($message, true);
