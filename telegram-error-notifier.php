@@ -30,8 +30,7 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 $myUpdateChecker->setBranch('main');
 
 //Optional: If you're using a private repository, specify the access token like this:
-$myUpdateChecker->setAuthentication('sdsdsl');
-
+$myUpdateChecker->setAuthentication('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');
 // Add at the top after ABSPATH check
 if (!defined('TEN_PLUGIN_VERSION')) {
     define('TEN_PLUGIN_VERSION', '1.9.5');
