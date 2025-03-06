@@ -17,20 +17,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
-require 'plugin-update-checker/plugin-update-checker.php';
-use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
-$myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://github.com/elyxxa/telegram-error-notifier/',
-    __FILE__,
-    'telegram-error-notifier'
-);
-
-//Set the branch that contains the stable release.
-$myUpdateChecker->setBranch('main');
-
-//Optional: If you're using a private repository, specify the access token like this:
-$myUpdateChecker->setAuthentication('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');
 // Add at the top after ABSPATH check
 if (!defined('TEN_PLUGIN_VERSION')) {
     define('TEN_PLUGIN_VERSION', '1.9.5');
