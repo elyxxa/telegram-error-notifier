@@ -41,6 +41,10 @@ class Settings {
         'wordfence_waf' => true,
         'check_acymailing' => true,
         'check_404_redirects' => true,
+		'cpanel_usage_check' => true,
+		'cpanel_hostname' => '',
+		'cpanel_username' => '',
+		'cpanel_token' => '',
     ];
     
     private function __construct() {
@@ -101,38 +105,58 @@ class Settings {
     public function __wakeup() {}
 
     // Add method to validate settings
-    public function validate_settings($settings) {
+    public function validate_settings($input) {
         $validated = [];
         
-        // Basic settings
-        $validated['bot_token'] = sanitize_text_field($settings['bot_token'] ?? '');
-        $validated['chat_id'] = sanitize_text_field($settings['chat_id'] ?? '');
-        $validated['notification_interval'] = sanitize_text_field($settings['notification_interval'] ?? 'daily');
-        $validated['alert_staging'] = ($settings['alert_staging'] ?? 'off');
-        $validated['disable_error_reporting'] = ($settings['disable_error_reporting'] ?? 'off');
-        $validated['disable_billwerk_error_reporting'] = ($settings['disable_billwerk_error_reporting'] ?? 'off');
+        // Validate bot token
+        $validated['bot_token'] = sanitize_text_field($input['bot_token'] ?? '');
         
-        // API Keys and thresholds
-        $validated['pagespeed_api_key'] = sanitize_text_field($settings['pagespeed_api_key'] ?? '');
-        $validated['pagespeed_threshold'] = min(100, max(0, intval($settings['pagespeed_threshold'] ?? 90)));
-        $validated['cloudflare_api_key'] = sanitize_text_field($settings['cloudflare_api_key'] ?? '');
-        $validated['security_headers_api_key'] = sanitize_text_field($settings['security_headers_api_key'] ?? '');
+        // Validate chat ID
+        $validated['chat_id'] = sanitize_text_field($input['chat_id'] ?? '');
         
-        // Arrays
-        $validated['plugin_notifications'] = isset($settings['plugin_notifications']) ? (array)$settings['plugin_notifications'] : [];
-        $validated['user_notifications'] = isset($settings['user_notifications']) ? (array)$settings['user_notifications'] : [];
-        $validated['woocommerce_notifications'] = isset($settings['woocommerce_notifications']) ? (array)$settings['woocommerce_notifications'] : [];
+        // Validate notification interval
+        $validated['notification_interval'] = sanitize_text_field($input['notification_interval'] ?? '5minutes');
         
-        // Menu settings
-        $validated['menu'] = sanitize_text_field($settings['menu'] ?? '');
+        // Validate alert_staging
+        $validated['alert_staging'] = ($input['alert_staging'] ?? 'off') === 'on' ? 'on' : 'off';
         
-        // Wordfence settings
-        $severity_levels = ['none', 'low', 'medium', 'high', 'critical'];
-        $severity = isset($settings['wordfence_severity_level']) ? sanitize_text_field($settings['wordfence_severity_level']) : 'critical';
-        $validated['wordfence_severity_level'] = in_array($severity, $severity_levels) ? $severity : 'critical';
+        // Validate plugin notifications
+        $validated['plugin_notifications'] = isset($input['plugin_notifications']) ? (array)$input['plugin_notifications'] : [];
         
-        // Checker settings
-        $checker_settings = [
+        // Validate user notifications
+        $validated['user_notifications'] = isset($input['user_notifications']) ? (array)$input['user_notifications'] : [];
+        
+        // Validate woocommerce notifications
+        $validated['woocommerce_notifications'] = isset($input['woocommerce_notifications']) ? (array)$input['woocommerce_notifications'] : [];
+        
+        // Validate disable error reporting
+        $validated['disable_error_reporting'] = ($input['disable_error_reporting'] ?? 'off') === 'on' ? 'on' : 'off';
+        
+        // Validate disable billwerk error reporting
+        $validated['disable_billwerk_error_reporting'] = ($input['disable_billwerk_error_reporting'] ?? 'off') === 'on' ? 'on' : 'off';
+        
+        // Validate Wordfence severity level
+        $validated['wordfence_severity_level'] = sanitize_text_field($input['wordfence_severity_level'] ?? 'none');
+        
+        // Validate PageSpeed API key
+        $validated['pagespeed_api_key'] = sanitize_text_field($input['pagespeed_api_key'] ?? '');
+        
+        // Validate PageSpeed threshold
+        $validated['pagespeed_threshold'] = absint($input['pagespeed_threshold'] ?? 90);
+        
+        // Validate Cloudflare API key
+        $validated['cloudflare_api_key'] = sanitize_text_field($input['cloudflare_api_key'] ?? '');
+        
+        // Validate menu slug
+        $validated['menu'] = sanitize_text_field($input['menu'] ?? '');
+
+        // Validate cPanel settings
+        $validated['cpanel_hostname'] = sanitize_text_field($input['cpanel_hostname'] ?? '');
+        $validated['cpanel_username'] = sanitize_text_field($input['cpanel_username'] ?? '');
+        $validated['cpanel_token'] = sanitize_text_field($input['cpanel_token'] ?? '');
+        
+        // Validate check toggles
+        $check_options = [
             'wordfence',
             'plugin_auto_updates',
             'front_page_meta_robots',
@@ -146,18 +170,20 @@ class Settings {
             'avif_webp_images',
             'updraft_backups',
             'woocommerce_hpos',
-            'security_headers',
             'pagespeed',
             'woocommerce_orders',
             'check_permalinks',
             'check_under_attack_mode',
-            'check_404_redirects'
+            'wordfence_waf',
+            'check_acymailing',
+            'check_404_redirects',
+            'cpanel_usage_check'  // Add the new check option
         ];
         
-        foreach ($checker_settings as $setting) {
-            $validated[$setting] = isset($settings[$setting]) && $settings[$setting] == '1';
+        foreach ($check_options as $option) {
+            $validated[$option] = !empty($input[$option]);
         }
-
+        
         return $validated;
     }
 

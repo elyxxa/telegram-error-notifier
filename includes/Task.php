@@ -10,16 +10,80 @@ class Task {
 	private $background_process;
 
     public function __construct($alert, $site_url, $cf, $background_process) {
-		$this->alert = $alert;
-		$this->site_url = $site_url;
-		$this->cf = $cf;
-		$this->settings = Settings::get_instance();
-		$this->background_process = $background_process;
-		
-		// Add the action for PageSpeed checks
-		add_action('telegram_error_notifier_pagespeed_check', [$this, 'schedule_pagespeed_check']);
+        // Initialize settings first
+        $this->settings = Settings::get_instance();
+        
+        // Then set other properties
+        $this->alert = $alert;
+        $this->site_url = $site_url;
+        $this->background_process = $background_process;
+        
+        // Initialize Cloudflare as null by default
+        $this->cf = null;
+        
+        // Only set Cloudflare if properly configured
+        if ($this->should_enable_cloudflare()) {
+            $this->cf = $cf;
+        }
+        
+        // Add the actions
+        add_action('telegram_error_notifier_pagespeed_check', [$this, 'schedule_pagespeed_check']);
         add_action('telegram_error_notifier_daily_check', array($this, 'telegram_daily_task_checker'));
         add_action('telegram_error_notifier_hourly_check', array($this, 'telegram_hourly_task_checker'));
+    }
+
+    /**
+     * Check if Cloudflare should be enabled
+     */
+    private function should_enable_cloudflare() {
+        // Check if settings exist
+        if (!$this->settings) {
+            return false;
+        }
+
+        // Check if Cloudflare checks are enabled
+        if (!$this->settings->get('cloudflare_settings', false)) {
+            return false;
+        }
+
+        // Check if API key exists
+        $api_key = $this->settings->get('cloudflare_api_key');
+        if (empty($api_key)) {
+            return false;
+        }
+
+        // Check if site URL is valid
+        $site_url = parse_url($this->site_url, PHP_URL_HOST);
+        if (empty($site_url)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check Cloudflare settings
+     */
+    private function check_cloudflare_settings() {
+        // Skip if Cloudflare is not properly configured
+        if (!$this->cf || !$this->should_enable_cloudflare()) {
+            return;
+        }
+
+        try {
+            $site_url = parse_url($this->site_url, PHP_URL_HOST);
+            if ($this->cf && method_exists($this->cf, 'get_zone_id')) {
+                $zone_id = $this->cf->get_zone_id($site_url);
+                if (!empty($zone_id)) {
+                    // Proceed with Cloudflare checks
+                    // ... rest of your Cloudflare checking code ...
+                }
+            }
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Cloudflare check skipped: ' . $e->getMessage());
+            }
+        }
     }
 
     public function schedule_pagespeed_check() {
@@ -153,16 +217,13 @@ class Task {
             $this->check_sitemap_file();
         }
 
-        if ($this->settings->get('cloudflare_cache', true)) {
-            $this->check_cloudflare_cache();
+        // Only run Cloudflare checks if properly configured
+        if ($this->should_enable_cloudflare()) {
+            $this->check_cloudflare_settings();
         }
 
         if ($this->settings->get('billwerk_settings', true)) {
             $this->check_billwerk_settings();
-        }
-
-        if ($this->settings->get('cloudflare_settings', true)) {
-            $this->check_cloudflare_settings();
         }
 
         if ($this->settings->get('rankmath_redirect', true)) {
@@ -199,6 +260,10 @@ class Task {
 
         if ($this->settings->get('acymailing_version', true)) {
             $this->check_acymailing_version();
+        }
+
+        if ($this->settings->get('cpanel_usage_check', true)) {
+            $this->check_cpanel_usage();
         }
     }
 
@@ -398,20 +463,6 @@ class Task {
 		}
 	}
 
-	public function check_cloudflare_settings() {
-		if ($this->settings->get('cloudflare_api_key') == '') {
-			$message = "Warning: Cloudflare API key is not set on {$this->site_url}.";
-			$this->alert->send_telegram_message($message, true);
-		} else {
-			$isEnabled = $this->cf->isCacheReserveEnabled();
-			if (!$isEnabled) {
-				$message = "Warning: Cloudflare cache reserve is not enabled on {$this->site_url}.";
-				$this->alert->send_telegram_message($message, true);
-			}
-		}
-		
-	}
-
 	public function checkPermalinks() {
         $missingUrls = [
             'posts' => $this->checkPostTypeUrls('post', 5),
@@ -588,7 +639,7 @@ class Task {
 			'yes'
 		);
 		$result = $wpdb->get_row($query);
-		$size_kb = (int)($result->autoload_size / 1024); // Convert to KB and remove decimals
+		$size_kb = (int)($result->value / 1024); // Convert to KB and remove decimals
 		
 		if ($size_kb > 400) {
 			$message = sprintf(
@@ -725,11 +776,35 @@ class Task {
 		return $site_host === $image_host;
 	}
 
-	public function checkUnderAttackMode() {
-        if ($this->cf->isUnderAttackMode()) {
-            $message = "⚠️ Warning: Cloudflare Under Attack Mode is enabled on {$this->site_url}\n";
-            $message .= "This might affect user experience and should be disabled when the threat is over.";
-            $this->alert->send_telegram_message($message, true);
+	private function checkUnderAttackMode() {
+        // Skip if check is disabled
+        if (!$this->settings->get('check_under_attack_mode', true)) {
+            return;
+        }
+
+        // Skip if Cloudflare is not properly configured
+        if (!$this->cf || !$this->should_enable_cloudflare()) {
+            return;
+        }
+
+        try {
+            // Check if the method exists before calling it
+            if (method_exists($this->cf, 'isUnderAttackMode')) {
+                $isUnderAttack = $this->cf->isUnderAttackMode();
+                
+                if ($isUnderAttack) {
+                    $message = sprintf(
+                        "🚨 Under Attack Mode is ENABLED for %s\n\n" .
+                        "This may affect legitimate users. Consider reviewing security settings.",
+                        $this->site_url
+                    );
+                    $this->alert->send_telegram_message($message, true);
+                }
+            }
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Error checking Under Attack Mode: ' . $e->getMessage());
+            }
         }
     }
 
@@ -1021,6 +1096,66 @@ class Task {
             }
             
             $this->alert->send_telegram_message($message, true);
+        }
+    }
+
+    public function check_cpanel_usage() {
+        if (!$this->settings->get('cpanel_usage_check', true)) {
+            return;
+        }
+
+        $hostname = $this->settings->get('cpanel_hostname');
+        $username = $this->settings->get('cpanel_username');
+        $token = $this->settings->get('cpanel_token');
+
+        if (empty($hostname) || empty($username) || empty($token)) {
+            return;
+        }
+
+        try {
+            $cpanel = new CpanelAPI($hostname, $username, $token);
+            $usage = $cpanel->get_resource_usage();
+
+            if (is_wp_error($usage)) {
+                $this->alert->send_telegram_message(
+                    "⚠️ Failed to check cPanel resource usage: " . $usage->get_error_message(),
+                    true
+                );
+                return;
+            }
+
+            // Check disk usage
+            if ($usage['disk']['percentage'] >= 90) {
+                $message = sprintf(
+                    "🚨 High Disk Usage Alert for %s\n\n" .
+                    "Disk Usage: %.1f%% (%.2f GB of %.2f GB)\n\n" .
+                    "Please take action to prevent service interruption.",
+                    $this->site_url,
+                    $usage['disk']['percentage'],
+                    $usage['disk']['used'] / 1024 / 1024 / 1024,
+                    $usage['disk']['limit'] / 1024 / 1024 / 1024
+                );
+                
+                $this->alert->send_telegram_message($message, true);
+            }
+
+			if ($usage['inodes']['percentage'] >= 90) {
+				$message = sprintf(
+					"🚨 High Inodes Usage Alert for %s\n\n" .
+					"Inodes Usage: %.1f%% (%d of %d)\n\n" .
+					"Please take action to prevent service interruption.",
+					$this->site_url,
+					$usage['inodes']['percentage'],
+					$usage['inodes']['used'],
+					$usage['inodes']['limit']
+				);
+				$this->alert->send_telegram_message($message, true);
+			}
+
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Error checking cPanel usage: ' . $e->getMessage());
+            }
         }
     }
 

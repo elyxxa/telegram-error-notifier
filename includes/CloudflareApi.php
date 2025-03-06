@@ -21,6 +21,10 @@ class CloudflareApi {
             ],
         ]);
 
+		if (empty($api_key)) {
+			return;
+		}
+
         $this->zone_id = $this->getZoneIdFromZoneName();
     }
 

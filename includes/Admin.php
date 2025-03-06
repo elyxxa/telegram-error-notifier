@@ -160,6 +160,43 @@ class Admin {
                         </td>
                     </tr>
 					<tr>
+						<th>cPanel Settings</th>
+						<td>
+							<fieldset>
+								<legend class="screen-reader-text">cPanel Settings</legend>
+								
+								<label>
+									<span>cPanel Hostname</span><br>
+									<input type="text" 
+										name="wp_telegram_error_notifier_settings[cpanel_hostname]" 
+										value="<?php echo esc_attr($this->settings->get('cpanel_hostname', '')); ?>" 
+										class="regular-text"
+										placeholder="hostname.example.com"
+									/>
+								</label><br><br>
+
+								<label>
+									<span>cPanel Username</span><br>
+									<input type="text" 
+										name="wp_telegram_error_notifier_settings[cpanel_username]" 
+										value="<?php echo esc_attr($this->settings->get('cpanel_username', '')); ?>" 
+										class="regular-text"
+									/>
+								</label><br><br>
+
+								<label>
+									<span>cPanel API Token</span><br>
+									<input type="password" 
+										name="wp_telegram_error_notifier_settings[cpanel_token]" 
+										value="<?php echo esc_attr($this->settings->get('cpanel_token', '')); ?>" 
+										class="regular-text"
+									/>
+								</label><br>
+								<p class="description">Generate this token in cPanel > Security > API Tokens</p>
+							</fieldset>
+						</td>
+					</tr>
+					<tr>
 						<th>Enable/Disable Checks</th>
 						<td>
 							<fieldset>
@@ -283,6 +320,13 @@ class Admin {
 									<input type="checkbox" name="wp_telegram_error_notifier_settings[check_404_redirects]" 
 										value="1" <?php checked($this->settings->get('check_404_redirects', true)); ?>>
 									Check 404 Redirects
+								</label><br>
+
+								<label>
+									<input type="checkbox" 
+										name="wp_telegram_error_notifier_settings[cpanel_usage_check]" 
+										value="1" <?php checked($this->settings->get('cpanel_usage_check', true)); ?>>
+									cPanel Usage Check
 								</label><br>
 							</fieldset>
 						</td>
