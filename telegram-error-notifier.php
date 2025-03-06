@@ -3,7 +3,7 @@
 * Plugin Name: Telegram Error Notifier
 * Plugin URI: https://webkonsulenterne.dk
 * Description: Telegram fatal error notifier for WordPress
-* Version: 2.0.9
+* Version: 2.0.10
 * Author: Md Rashedul Islam, Webkonsulenterne
 * Author URI: https://webkonsulenterne.dk
 * License: GPL2
@@ -17,6 +17,20 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+require 'plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+    'https://github.com/elyxxa/telegram-error-notifier/',
+    __FILE__,
+    'telegram-error-notifier'
+);
+
+//Set the branch that contains the stable release.
+$myUpdateChecker->setBranch('main');
+
+//Optional: If you're using a private repository, specify the access token like this:
+$myUpdateChecker->setAuthentication('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');
 
 // Add at the top after ABSPATH check
 if (!defined('TEN_PLUGIN_VERSION')) {
@@ -41,12 +55,6 @@ use Webkonsulenterne\TelegramErrorNotifier\CloudflareApi;
 use Webkonsulenterne\TelegramErrorNotifier\MenuChangeChecker;
 use Webkonsulenterne\TelegramErrorNotifier\BackgroundProcess;
 use Webkonsulenterne\TelegramErrorNotifier\Settings;
-use Webkonsulenterne\TelegramErrorNotifier\UpdateChecker;
-
-// Initialize the update checker
-if (is_admin()) {
-    new UpdateChecker(__FILE__);
-}
 
 class WPTelegramErrorNotifier
 {
