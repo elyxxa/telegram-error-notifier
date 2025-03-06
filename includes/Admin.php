@@ -277,7 +277,13 @@ class Admin {
 									<input type="checkbox" name="wp_telegram_error_notifier_settings[check_acymailing]" 
 										value="1" <?php checked($this->settings->get('check_acymailing', true)); ?>>
 									AcyMailing Version Check
-								</label>
+								</label><br>
+
+								<label>
+									<input type="checkbox" name="wp_telegram_error_notifier_settings[check_404_redirects]" 
+										value="1" <?php checked($this->settings->get('check_404_redirects', true)); ?>>
+									Check 404 Redirects
+								</label><br>
 							</fieldset>
 						</td>
 					</tr>
