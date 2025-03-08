@@ -3,7 +3,7 @@ namespace Webkonsulenterne\TelegramErrorNotifier;
 
 class Settings {
     private static $instance = null;
-    private $settings = null;
+    private $options;
     private $option_name = 'wp_telegram_error_notifier_settings';
     
     private $default_settings = [
@@ -45,57 +45,50 @@ class Settings {
 		'cpanel_hostname' => '',
 		'cpanel_username' => '',
 		'cpanel_token' => '',
+		'wp_toolkit_check' => true
     ];
     
     private function __construct() {
-        $this->load_settings();
+        $this->options = get_option($this->option_name, []);
     }
     
     public static function get_instance() {
-        if (null === self::$instance) {
+        if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
     }
     
-    private function load_settings() {
-        if ($this->settings === null) {
-            $saved_settings = get_option($this->option_name, []);
-            $this->settings = wp_parse_args($saved_settings, $this->default_settings);
-        }
+    /**
+     * Get all settings
+     * 
+     * @return array All settings
+     */
+    public function get_all() {
+        return $this->options;
     }
     
     public function get($key = null, $default = null) {
         if ($key === null) {
-            return $this->settings;
+            return $this->options;
         }
         
-        if (!array_key_exists($key, $this->settings)) {
+        if (!array_key_exists($key, $this->options)) {
             return $default;
         }
         
-        return $this->settings[$key];
+        return $this->options[$key];
     }
     
-    public function update($new_settings) {
-        if (!is_array($new_settings)) {
-            return false;
-        }
-        
-        // Sanitize the settings
-        $sanitized_settings = $this->sanitize($new_settings);
-        
-        // Merge with existing settings
-        $this->settings = wp_parse_args($sanitized_settings, $this->settings);
-        
-        // Save and return result
-        $saved = update_option($this->option_name, $this->settings);
-        
-        if ($saved && defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Telegram Error Notifier settings updated successfully');
-        }
-        
-        return $saved;
+    /**
+     * Update settings
+     * 
+     * @param array $settings New settings to save
+     * @return bool Whether the update was successful
+     */
+    public function update($settings) {
+        $this->options = $settings;
+        return update_option($this->option_name, $settings);
     }
 
     // Prevent cloning of the instance
@@ -177,7 +170,8 @@ class Settings {
             'wordfence_waf',
             'check_acymailing',
             'check_404_redirects',
-            'cpanel_usage_check'  // Add the new check option
+            'cpanel_usage_check',
+			'wp_toolkit_check'
         ];
         
         foreach ($check_options as $option) {

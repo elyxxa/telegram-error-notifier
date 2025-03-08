@@ -328,6 +328,13 @@ class Admin {
 										value="1" <?php checked($this->settings->get('cpanel_usage_check', true)); ?>>
 									cPanel Usage Check
 								</label><br>
+
+								<label>
+									<input type="checkbox" 
+										name="wp_telegram_error_notifier_settings[wp_toolkit_check]" 
+										value="1" <?php checked($this->settings->get('wp_toolkit_check', true)); ?>>
+									WP Toolkit Security Check
+								</label><br>
 							</fieldset>
 						</td>
 					</tr>

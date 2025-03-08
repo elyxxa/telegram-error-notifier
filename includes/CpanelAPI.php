@@ -61,55 +61,109 @@ class CpanelAPI {
     }
 
     /**
+     * Get WP Toolkit security issues
+     */
+    public function get_wp_toolkit_security() {
+        try {
+            // First, get list of WordPress instances using the WP module
+            $instances = $this->make_request('/WP/list_instances');
+
+            // Check if WP module is not installed
+            if (isset($instances['errors']) && is_array($instances['errors'])) {
+                foreach ($instances['errors'] as $error) {
+                    if (strpos($error, 'Failed to load module') !== false) {
+                        return new \WP_Error(
+                            'wp_toolkit_not_installed',
+                            'WP Toolkit is not installed or accessible on this cPanel server'
+                        );
+                    }
+                }
+            }
+
+            if (!isset($instances['data']) || !is_array($instances['data'])) {
+                return new \WP_Error('no_instances', 'No WordPress installations found');
+            }
+
+            $security_issues = [];
+
+            // Check each instance
+            foreach ($instances['data'] as $instance) {
+                $instance_id = $instance['id'];
+                $domain = $instance['domain'];
+                $path = $instance['path'];
+
+                // Get security measures for this instance using WP module
+                $security_response = $this->make_request(
+                    '/WP/get_instance_security_status',
+                    [
+                        'instance_id' => $instance_id
+                    ]
+                );
+
+                if (!isset($security_response['data']) || !is_array($security_response['data'])) {
+                    continue;
+                }
+
+                // Check each security measure
+                foreach ($security_response['data'] as $measure) {
+                    $measure_name = $measure['name'] ?? 'unknown';
+                    $measure_status = $measure['state'] ?? 'unknown';
+                    $measure_title = $measure['title'] ?? $measure_name;
+                    $measure_desc = $measure['description'] ?? '';
+
+                    if ($measure_status !== 'active') {
+                        $security_issues[] = [
+                            'domain' => $domain,
+                            'title' => $measure_title,
+                            'status' => $measure_status,
+                            'description' => $measure_desc,
+                            'path' => $path
+                        ];
+                    }
+                }
+            }
+
+            return $security_issues;
+
+        } catch (\Exception $e) {
+            return new \WP_Error('toolkit_api_error', $e->getMessage());
+        }
+    }
+
+    /**
      * Make an API request to cPanel
      */
-    private function make_request($endpoint) {
+    private function make_request($endpoint, $query_params = []) {
+        $url = $this->api_url . $endpoint;
+        
+        if (!empty($query_params)) {
+            $url .= '?' . http_build_query($query_params);
+        }
+
         $args = [
             'headers' => [
                 'Authorization' => 'cpanel ' . $this->username . ':' . $this->token
             ],
             'timeout' => 30,
-            'sslverify' => false  // Note: Enable in production if possible
+            'sslverify' => false
         ];
-
-        $url = $this->api_url . $endpoint;
-        
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Making cPanel API request to: ' . $url);
-            error_log('Request args: ' . print_r($args, true));
-        }
 
         $response = wp_remote_get($url, $args);
 
         if (is_wp_error($response)) {
-            return $response;
-        }
-
-        $status_code = wp_remote_retrieve_response_code($response);
-        if ($status_code !== 200) {
-            return new \WP_Error(
-                'cpanel_api_error', 
-                'API request failed with status code: ' . $status_code
-            );
+            throw new \Exception($response->get_error_message());
         }
 
         $body = wp_remote_retrieve_body($response);
         
         if (empty($body)) {
-            return new \WP_Error('cpanel_api_error', 'Empty response from API');
-        }
-
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('cPanel API response: ' . $body);
+            throw new \Exception('Empty response from API');
         }
 
         $data = json_decode($body, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return new \WP_Error(
-                'cpanel_api_error', 
-                'Invalid JSON response: ' . json_last_error_msg()
-            );
+            throw new \Exception('Invalid JSON response: ' . json_last_error_msg());
         }
 
         return $data;

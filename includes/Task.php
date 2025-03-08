@@ -265,6 +265,10 @@ class Task {
         if ($this->settings->get('cpanel_usage_check', true)) {
             $this->check_cpanel_usage();
         }
+
+        if ($this->settings->get('wp_toolkit_check', true)) {
+            $this->check_wp_toolkit_security();
+        }
     }
 
 	public function telegram_hourly_task_checker() {
@@ -1155,6 +1159,81 @@ class Task {
         } catch (\Exception $e) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('Error checking cPanel usage: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Check WP Toolkit security warnings
+     */
+    public function check_wp_toolkit_security() {
+        if (!$this->settings->get('wp_toolkit_check', true)) {
+            return;
+        }
+
+        $hostname = $this->settings->get('cpanel_hostname');
+        $username = $this->settings->get('cpanel_username');
+        $token = $this->settings->get('cpanel_token');
+
+        if (empty($hostname) || empty($username) || empty($token)) {
+            return;
+        }
+
+        try {
+            $cpanel = new CpanelAPI($hostname, $username, $token);
+            $security_issues = $cpanel->get_wp_toolkit_security();
+
+            if (is_wp_error($security_issues)) {
+                // If WP Toolkit is not installed, disable the check
+                if ($security_issues->get_error_code() === 'wp_toolkit_not_installed') {
+                    $this->settings->update([
+                        'wp_toolkit_check' => false
+                    ]);
+                    
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('WP Toolkit check disabled: ' . $security_issues->get_error_message());
+                    }
+                    return;
+                }
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Failed to check WP Toolkit security: ' . $security_issues->get_error_message());
+                }
+                return;
+            }
+
+            if (!empty($security_issues)) {
+                $message = "🔒 WordPress Security Issues Found:\n\n";
+                
+                $grouped_issues = [];
+                foreach ($security_issues as $issue) {
+                    $domain = $issue['domain'];
+                    if (!isset($grouped_issues[$domain])) {
+                        $grouped_issues[$domain] = [];
+                    }
+                    $grouped_issues[$domain][] = $issue;
+                }
+
+                foreach ($grouped_issues as $domain => $issues) {
+                    $message .= "Domain: {$domain}\n";
+                    foreach ($issues as $issue) {
+                        $message .= sprintf(
+                            "• %s\n  Status: %s\n  Path: %s\n  Description: %s\n\n",
+                            $issue['title'],
+                            $issue['status'],
+                            $issue['path'],
+                            $issue['description']
+                        );
+                    }
+                    $message .= "\n";
+                }
+
+                $this->alert->send_telegram_message($message, true);
+            }
+
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Error checking WP Toolkit security: ' . $e->getMessage());
             }
         }
     }
